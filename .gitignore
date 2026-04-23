@@ -1,0 +1,10 @@
+build/
+dist/
+target/
+nb-configuration.xml
+.idea/vcs.xml
+.idea/misc.xml
+.idea/jarRepositories.xml
+.idea/encodings.xml
+.idea/compiler.xml
+.idea/workspace.xml
