@@ -39,14 +39,14 @@ public class AccountsResource {
         try ( Connection con = DatabaseManager.getConnection()) {
             JsonObject json = GsonUtils.INSTANCE.fromJson(body, JsonObject.class);
 
-            String name = GsonUtils.getNotBlankString(json, "name", "\"name\" field is mandatory");
-            String normalBalance = GsonUtils.getNotBlankString(json, "normalBalance", "\"normalBalance\" field is mandatory");
+            String name = GsonUtils.getNotBlankString(json, "name", "'name' field is mandatory");
+            String normalBalance = GsonUtils.getNotBlankString(json, "normalBalance", "'normalBalance' field is mandatory");
             
             if (!Utils.instance().in(normalBalance, "DEBIT", "CREDIT")) {
-                throw new IllegalArgumentException("\"normalBalance\" field value is either \"DEBIT\" or \"CREDIT\"");
+                throw new IllegalArgumentException("'normalBalance' field value is either 'DEBIT' or 'CREDIT'");
             }
 
-            String sql = "INSERT INTO accounts (name, normal_balance) VALUES (?, ?)";
+            String sql = "INSERT INTO sld_accounts (name, normal_balance) VALUES (?, ?)";
 
             try ( PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, Utils.instance().safeString(name));
