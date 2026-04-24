@@ -18,6 +18,7 @@ import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
@@ -153,6 +154,65 @@ public class AccountsResource {
                     .entity(response)
                     .build();
 
+        }
+    }
+
+    @GET
+    @Path("{accountId}")
+    @Produces(ResponseUtils.JSON_UTF8)
+    public Response getAccount(@PathParam("accountId") long accountId) {
+        if (accountId <= 0) {
+            int status = Response.Status.BAD_REQUEST.getStatusCode();
+            String response = ApiErrorResponse.build(status, "'accountId' must be a positive number", null);
+
+            return Response.status(status)
+                    .type(ResponseUtils.JSON_UTF8)
+                    .entity(response)
+                    .build();
+        }
+
+        try ( Connection con = DatabaseManager.getConnection()) {
+            String sql = "SELECT id, name, normal_balance FROM sld_accounts WHERE id = ?";
+
+            try ( PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setLong(1, accountId);
+
+                try ( ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next()) {
+                        int status = Response.Status.NOT_FOUND.getStatusCode();
+                        
+                        String response = ApiErrorResponse.build(status, "Account not found", null);
+
+                        return Response.status(status)
+                                .type(ResponseUtils.JSON_UTF8)
+                                .entity(response)
+                                .build();
+                    }
+
+                    String response = GsonUtils.jsonObjectBuilder()
+                            .prop("id", rs.getLong("id"))
+                            .prop("name", rs.getString("name"))
+                            .prop("normalBalance", rs.getString("normal_balance"))
+                            .build()
+                            .toString();
+
+                    return Response.ok(response)
+                            .type(ResponseUtils.JSON_UTF8)
+                            .build();
+                }
+            }
+        } catch (SQLException ex) {
+            Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
+            
+            int status = Response.Status.BAD_REQUEST.getStatusCode();
+            
+            String message = String.format("%s (sqlState=%s, errorCode=%s)", ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
+            String response = ApiErrorResponse.build(status, message, null);
+
+            return Response.status(status)
+                    .type(ResponseUtils.JSON_UTF8)
+                    .entity(response)
+                    .build();
         }
     }
 
