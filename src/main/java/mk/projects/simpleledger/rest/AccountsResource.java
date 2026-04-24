@@ -5,7 +5,6 @@
  */
 package mk.projects.simpleledger.rest;
 
-import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -23,7 +22,9 @@ import javax.ws.rs.Produces;
 import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 import mk.projects.simpleledger.core.DatabaseManager;
+import mk.projects.simpleledger.rest.errors.ApiErrorResponse;
 import mk.projects.simpleledger.utils.GsonUtils;
+import mk.projects.simpleledger.utils.ResponseUtils;
 import mk.projects.simpleledger.utils.Utils;
 
 /**
@@ -35,8 +36,8 @@ import mk.projects.simpleledger.utils.Utils;
 public class AccountsResource {
 
     @POST
-    @Consumes("application/json; charset=UTF-8")
-    @Produces("application/json; charset=UTF-8")
+    @Consumes(ResponseUtils.JSON_UTF8)
+    @Produces(ResponseUtils.JSON_UTF8)
     @Path("create")
     public Response createAccount(String body) {
 
@@ -68,52 +69,35 @@ public class AccountsResource {
                 String response = GsonUtils.jsonObjectBuilder().prop("id", id).build().toString();
 
                 return Response.ok(response)
-                        .type("application/json; charset=UTF-8")
+                        .type(ResponseUtils.JSON_UTF8)
                         .build();
             }
         } catch (SQLException ex) {
             Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
 
             int status = Response.Status.BAD_REQUEST.getStatusCode();
-
-            String response = GsonUtils.jsonObjectBuilder()
-                    .prop("error", ex.getMessage())
-                    .prop("sqlState", ex.getSQLState())
-                    .prop("errorCode", ex.getErrorCode())
-                    .build()
-                    .toString();
+            String message = String.format("%s (sqlState=%s, errorCode=%s)", ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
+            String response = ApiErrorResponse.build(status, message, null);
 
             return Response.status(status)
-                    .type("application/json; charset=UTF-8")
+                    .type(ResponseUtils.JSON_UTF8)
                     .entity(response)
                     .build();
         } catch (IllegalArgumentException ex) {
             Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
 
             int status = Response.Status.BAD_REQUEST.getStatusCode();
-
-            String response = GsonUtils.jsonObjectBuilder()
-                    .prop("error", ex.getMessage())
-                    .build()
-                    .toString();
+            String response = ApiErrorResponse.build(status, ex.getMessage(), null);
 
             return Response.status(status)
-                    .type("application/json; charset=UTF-8")
-                    .entity(response)
-                    .build();
-        } catch (Exception ex) {
-            Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
-
-            String response = GsonUtils.jsonObjectBuilder().prop("error", ex.getMessage()).build().toString();
-
-            return Response.serverError()
+                    .type(ResponseUtils.JSON_UTF8)
                     .entity(response)
                     .build();
         }
     }
 
     @GET
-    @Produces("application/json; charset=UTF-8")
+    @Produces(ResponseUtils.JSON_UTF8)
     public Response getAccounts(
             @QueryParam("offset") @DefaultValue("0") int offset,
             @QueryParam("limit") @DefaultValue("20") int limit) {
@@ -155,37 +139,21 @@ public class AccountsResource {
                             .toString();
 
                     return Response.ok(response)
-                            .type("application/json; charset=UTF-8")
+                            .type(ResponseUtils.JSON_UTF8)
                             .build();
                 }
             }
         } catch (SQLException ex) {
             Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
-
-            String response = GsonUtils.jsonObjectBuilder()
-                    .prop("error", ex.getMessage())
-                    .prop("sqlState", ex.getSQLState())
-                    .prop("errorCode", ex.getErrorCode())
-                    .build()
-                    .toString();
+            int status = Response.Status.BAD_REQUEST.getStatusCode();
+            String message = String.format("%s (sqlState=%s, errorCode=%s)", ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
+            String response = ApiErrorResponse.build(status, message, null);
 
             return Response.status(Response.Status.BAD_REQUEST)
-                    .type("application/json; charset=UTF-8")
+                    .type(ResponseUtils.JSON_UTF8)
                     .entity(response)
                     .build();
 
-        } catch (Exception ex) {
-            Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
-
-            String response = GsonUtils.jsonObjectBuilder()
-                    .prop("error", ex.getMessage())
-                    .build()
-                    .toString();
-
-            return Response.serverError()
-                    .type("application/json; charset=UTF-8")
-                    .entity(response)
-                    .build();
         }
     }
 
