@@ -11,8 +11,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
@@ -35,7 +33,13 @@ import mk.projects.simpleledger.utils.Utils;
  */
 @Path("/Accounts")
 public class AccountsResource {
+    
+    private final static String QUERY_ACCOUNTS = "SELECT id, name, normal_balance FROM sld_accounts ORDER BY id LIMIT ? OFFSET ?";
+    
+    private final static String QUERY_ACCOUNT = "SELECT id, name, normal_balance FROM sld_accounts WHERE id = ?";
 
+    private final static String INSERT_ACCOUNT = "INSERT INTO sld_accounts (name, normal_balance) VALUES (?, ?)";
+    
     @POST
     @Consumes(ResponseUtils.JSON_UTF8)
     @Produces(ResponseUtils.JSON_UTF8)
@@ -51,9 +55,7 @@ public class AccountsResource {
                 throw new IllegalArgumentException("'normalBalance' field value is either 'DEBIT' or 'CREDIT'");
             }
 
-            String sql = "INSERT INTO sld_accounts (name, normal_balance) VALUES (?, ?)";
-
-            try ( PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            try ( PreparedStatement ps = con.prepareStatement(INSERT_ACCOUNT, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, Utils.instance().safeString(name));
                 ps.setString(2, Utils.instance().safeString(normalBalance));
 
@@ -90,9 +92,7 @@ public class AccountsResource {
         }
 
         try ( Connection con = DatabaseManager.getConnection()) {
-            String sql = "SELECT id, name, normal_balance FROM sld_accounts ORDER BY id LIMIT ? OFFSET ?";
-
-            try ( PreparedStatement ps = con.prepareStatement(sql)) {
+            try ( PreparedStatement ps = con.prepareStatement(QUERY_ACCOUNTS)) {
                 ps.setInt(1, limit);
                 ps.setInt(2, offset);
 
@@ -140,9 +140,7 @@ public class AccountsResource {
         }
 
         try ( Connection con = DatabaseManager.getConnection()) {
-            String sql = "SELECT id, name, normal_balance FROM sld_accounts WHERE id = ?";
-
-            try ( PreparedStatement ps = con.prepareStatement(sql)) {
+            try ( PreparedStatement ps = con.prepareStatement(QUERY_ACCOUNT)) {
                 ps.setLong(1, accountId);
 
                 try ( ResultSet rs = ps.executeQuery()) {

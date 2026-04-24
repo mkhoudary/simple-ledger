@@ -11,6 +11,7 @@ import com.google.gson.JsonObject;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.sql.Connection;
+import java.sql.Timestamp;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -18,11 +19,14 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.GET;
+import javax.ws.rs.PathParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
 import javax.ws.rs.core.Response;
 import mk.projects.simpleledger.core.DatabaseManager;
+import mk.projects.simpleledger.rest.errors.ApiErrorResponse;
 import mk.projects.simpleledger.utils.GsonUtils;
 import mk.projects.simpleledger.utils.LedgerUtils;
 import mk.projects.simpleledger.utils.ResponseUtils;
@@ -35,6 +39,18 @@ import mk.projects.simpleledger.utils.Utils;
  */
 @Path("/Transactions")
 public class TransactionsResource {
+    
+    private final static String INSERT_TRANSACTION = "INSERT INTO sld_transactions (idempotency_key, transaction_type_code, external_id, notes) VALUES (?, ?, ?, ?)";
+    
+    private final static String INSERT_JOURNAL_ENTRY = "INSERT INTO sld_journal_entries (transaction_id, account_id, type, amount) VALUES (?, ?, ?, ?)";
+
+    private final static String FETCH_TRANSACTION = "SELECT id, idempotency_key, transaction_type_code, external_id, notes, created_at "
+                + "FROM sld_transactions WHERE id = ?";
+    
+    private final static String FETCH_JOURNAL_ENTRIES_QUERY = "SELECT je.account_id, a.name AS account_name, je.type, je.amount "
+            + "FROM sld_journal_entries je "
+            + "JOIN sld_accounts a ON a.id = je.account_id "
+            + "WHERE je.transaction_id = ? ORDER BY je.id";
 
     @POST
     @Consumes(ResponseUtils.JSON_UTF8)
@@ -45,7 +61,7 @@ public class TransactionsResource {
 
             try {
                 JsonObject json = GsonUtils.INSTANCE.fromJson(body, JsonObject.class);
-                
+
                 String externalId = GsonUtils.getNotBlankString(json, "externalId", "'externalId' field is mandatory");
                 String idempotencyId = GsonUtils.getNotBlankString(json, "idempotencyId", "'idempotencyId' field is mandatory");
                 String transactionType = GsonUtils.getNotBlankString(json, "type", "'type' field is mandatory");
@@ -57,7 +73,7 @@ public class TransactionsResource {
                 }
 
                 long existingTransactionId = findExistingTransactionIdByIdempotency(con, idempotencyId);
-                
+
                 if (existingTransactionId > 0) {
                     con.rollback();
 
@@ -74,11 +90,11 @@ public class TransactionsResource {
                 LedgerUtils.instance().validateTransactionTypeCode(con, transactionType);
 
                 List<JournalEntryData> entries = parseAndValidateJournalEntries(journalEntries);
-                
+
                 validateBalancedEntries(entries);
 
                 long transactionId = insertTransaction(con, idempotencyId, transactionType, externalId, notes);
-                
+
                 insertJournalEntries(con, transactionId, entries);
 
                 con.commit();
@@ -99,6 +115,52 @@ public class TransactionsResource {
         }
     }
 
+    @GET
+    @Path("{transactionId}")
+    @Produces(ResponseUtils.JSON_UTF8)
+    public Response getTransaction(@PathParam("transactionId") long transactionId) throws SQLException {
+        if (transactionId <= 0) {
+            int status = Response.Status.BAD_REQUEST.getStatusCode();
+            String response = ApiErrorResponse.build(status, "'id' must be a positive number", null);
+
+            return Response.status(status)
+                    .type(ResponseUtils.JSON_UTF8)
+                    .entity(response)
+                    .build();
+        }
+
+        try ( Connection con = DatabaseManager.getConnection()) {
+            TransactionDetails transaction = fetchTransaction(con, transactionId);
+
+            if (transaction == null) {
+                int status = Response.Status.NOT_FOUND.getStatusCode();
+                String response = ApiErrorResponse.build(status, "Transaction not found", null);
+
+                return Response.status(status)
+                        .type(ResponseUtils.JSON_UTF8)
+                        .entity(response)
+                        .build();
+            }
+
+            JsonArray journalEntries = fetchTransactionEntries(con, transactionId);
+
+            String response = GsonUtils.jsonObjectBuilder()
+                    .prop("id", transaction.id)
+                    .prop("idempotencyId", transaction.idempotencyId)
+                    .prop("type", transaction.type)
+                    .prop("externalId", transaction.externalId)
+                    .prop("notes", transaction.notes)
+                    .prop("createdAt", transaction.createdAt)
+                    .prop("journalEntries", journalEntries)
+                    .build()
+                    .toString();
+
+            return Response.ok(response)
+                    .type(ResponseUtils.JSON_UTF8)
+                    .build();
+        }
+    }
+
     private long findExistingTransactionIdByIdempotency(Connection con, String idempotencyId) throws SQLException {
         String sql = "SELECT id FROM sld_transactions WHERE idempotency_key = ?";
 
@@ -113,6 +175,53 @@ public class TransactionsResource {
         }
 
         return -1;
+    }
+
+    private TransactionDetails fetchTransaction(Connection con, long id) throws SQLException {
+        try ( PreparedStatement ps = con.prepareStatement(FETCH_TRANSACTION)) {
+            ps.setLong(1, id);
+
+            try ( ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+
+                TransactionDetails details = new TransactionDetails();
+                
+                details.id = rs.getLong("id");
+                details.idempotencyId = rs.getString("idempotency_key");
+                details.type = rs.getString("transaction_type_code");
+                details.externalId = rs.getString("external_id");
+                details.notes = rs.getString("notes");
+                Timestamp createdAt = rs.getTimestamp("created_at");
+                details.createdAt = createdAt == null ? null : createdAt.toString();
+
+                return details;
+            }
+        }
+    }
+
+    private JsonArray fetchTransactionEntries(Connection con, long transactionId) throws SQLException {
+        try ( PreparedStatement ps = con.prepareStatement(FETCH_JOURNAL_ENTRIES_QUERY)) {
+            ps.setLong(1, transactionId);
+
+            try ( ResultSet rs = ps.executeQuery()) {
+                GsonUtils.JsonArrayBuilder entries = GsonUtils.jsonArrayBuilder();
+
+                while (rs.next()) {
+                    entries.prop(
+                            GsonUtils.jsonObjectBuilder()
+                                    .prop("accountId", rs.getLong("account_id"))
+                                    .prop("accountName", rs.getString("account_name"))
+                                    .prop("type", rs.getString("type"))
+                                    .prop("amount", rs.getBigDecimal("amount"))
+                                    .build()
+                    );
+                }
+
+                return entries.build();
+            }
+        }
     }
 
     private List<JournalEntryData> parseAndValidateJournalEntries(JsonArray journalEntries) {
@@ -197,9 +306,7 @@ public class TransactionsResource {
     }
 
     private long insertTransaction(Connection con, String idempotencyId, String transactionType, String externalId, String notes) throws SQLException {
-        String sql = "INSERT INTO sld_transactions (idempotency_key, transaction_type_code, external_id, notes) VALUES (?, ?, ?, ?)";
-
-        try ( PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+        try ( PreparedStatement ps = con.prepareStatement(INSERT_TRANSACTION, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, Utils.instance().safeString(idempotencyId));
             ps.setString(2, Utils.instance().safeString(transactionType));
             ps.setString(3, Utils.instance().safeString(externalId));
@@ -218,9 +325,7 @@ public class TransactionsResource {
     }
 
     private void insertJournalEntries(Connection con, long transactionId, List<JournalEntryData> entries) throws SQLException {
-        String sql = "INSERT INTO sld_journal_entries (transaction_id, account_id, type, amount) VALUES (?, ?, ?, ?)";
-
-        try ( PreparedStatement ps = con.prepareStatement(sql)) {
+        try ( PreparedStatement ps = con.prepareStatement(INSERT_JOURNAL_ENTRY)) {
             for (JournalEntryData entry : entries) {
                 ps.setLong(1, transactionId);
                 ps.setLong(2, entry.accountId);
@@ -244,5 +349,15 @@ public class TransactionsResource {
             this.type = type;
             this.amount = amount;
         }
+    }
+
+    private static class TransactionDetails {
+
+        private long id;
+        private String idempotencyId;
+        private String type;
+        private String externalId;
+        private String notes;
+        private String createdAt;
     }
 }
