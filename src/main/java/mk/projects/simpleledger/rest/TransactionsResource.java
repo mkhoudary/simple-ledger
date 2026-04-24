@@ -49,6 +49,7 @@ public class TransactionsResource {
                 String externalId = GsonUtils.getNotBlankString(json, "externalId", "'externalId' field is mandatory");
                 String idempotencyId = GsonUtils.getNotBlankString(json, "idempotencyId", "'idempotencyId' field is mandatory");
                 String transactionType = GsonUtils.getNotBlankString(json, "type", "'type' field is mandatory");
+                String notes = GsonUtils.getString(json, "notes", null);
                 JsonArray journalEntries = GsonUtils.getJsonArray(json, "journalEntries", null);
 
                 if (journalEntries == null || journalEntries.size() < 2) {
@@ -76,7 +77,7 @@ public class TransactionsResource {
                 
                 validateBalancedEntries(entries);
 
-                long transactionId = insertTransaction(con, idempotencyId, transactionType, externalId);
+                long transactionId = insertTransaction(con, idempotencyId, transactionType, externalId, notes);
                 
                 insertJournalEntries(con, transactionId, entries);
 
@@ -195,13 +196,14 @@ public class TransactionsResource {
         }
     }
 
-    private long insertTransaction(Connection con, String idempotencyId, String transactionType, String externalId) throws SQLException {
-        String sql = "INSERT INTO sld_transactions (idempotency_key, transaction_type_code, external_id) VALUES (?, ?, ?)";
+    private long insertTransaction(Connection con, String idempotencyId, String transactionType, String externalId, String notes) throws SQLException {
+        String sql = "INSERT INTO sld_transactions (idempotency_key, transaction_type_code, external_id, notes) VALUES (?, ?, ?, ?)";
 
         try ( PreparedStatement ps = con.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, Utils.instance().safeString(idempotencyId));
             ps.setString(2, Utils.instance().safeString(transactionType));
             ps.setString(3, Utils.instance().safeString(externalId));
+            ps.setString(4, Utils.instance().isBlank(notes) ? null : Utils.instance().safeString(notes));
 
             ps.executeUpdate();
 
