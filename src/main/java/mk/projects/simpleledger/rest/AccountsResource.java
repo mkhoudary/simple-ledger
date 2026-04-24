@@ -43,6 +43,16 @@ public class AccountsResource {
             + "JOIN sld_transactions t ON t.id = je.transaction_id "
             + "WHERE je.account_id = ? "
             + "ORDER BY je.id LIMIT ? OFFSET ?";
+    
+    private final static String QUERY_ACCOUNT_BALANCE = "SELECT "
+            + "COALESCE(SUM("
+            + "CASE "
+            + "WHEN type = 'DEBIT' THEN amount "
+            + "WHEN type = 'CREDIT' THEN -amount "
+            + "END"
+            + "), 0) AS balance "
+            + "FROM sld_journal_entries "
+            + "WHERE account_id = ?";
 
     private final static String INSERT_ACCOUNT = "INSERT INTO sld_accounts (name, normal_balance) VALUES (?, ?)";
     
@@ -242,6 +252,57 @@ public class AccountsResource {
                             .prop("offset", offset)
                             .prop("limit", limit)
                             .prop("journalEntries", entriesBuilder.build())
+                            .build()
+                            .toString();
+
+                    return Response.ok(response)
+                            .type(ResponseUtils.JSON_UTF8)
+                            .build();
+                }
+            }
+        }
+    }
+    
+    @GET
+    @Path("{accountId}/balance")
+    @Produces(ResponseUtils.JSON_UTF8)
+    public Response getAccountBalance(@PathParam("accountId") long accountId) throws SQLException {
+        if (accountId <= 0) {
+            int status = Response.Status.BAD_REQUEST.getStatusCode();
+            String response = ApiErrorResponse.build(status, "'accountId' must be a positive number", null);
+
+            return Response.status(status)
+                    .type(ResponseUtils.JSON_UTF8)
+                    .entity(response)
+                    .build();
+        }
+
+        try ( Connection con = DatabaseManager.getConnection()) {
+            try ( PreparedStatement accountPs = con.prepareStatement(QUERY_ACCOUNT)) {
+                accountPs.setLong(1, accountId);
+
+                try ( ResultSet accountRs = accountPs.executeQuery()) {
+                    if (!accountRs.next()) {
+                        int status = Response.Status.NOT_FOUND.getStatusCode();
+                        String response = ApiErrorResponse.build(status, "Account not found", null);
+
+                        return Response.status(status)
+                                .type(ResponseUtils.JSON_UTF8)
+                                .entity(response)
+                                .build();
+                    }
+                }
+            }
+
+            try ( PreparedStatement balancePs = con.prepareStatement(QUERY_ACCOUNT_BALANCE)) {
+                balancePs.setLong(1, accountId);
+
+                try ( ResultSet rs = balancePs.executeQuery()) {
+                    rs.next();
+
+                    String response = GsonUtils.jsonObjectBuilder()
+                            .prop("accountId", accountId)
+                            .prop("balance", rs.getBigDecimal("balance"))
                             .build()
                             .toString();
 
