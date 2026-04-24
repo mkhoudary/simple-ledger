@@ -72,16 +72,6 @@ public class AccountsResource {
                         .type(ResponseUtils.JSON_UTF8)
                         .build();
             }
-        } catch (IllegalArgumentException ex) {
-            Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
-
-            int status = Response.Status.BAD_REQUEST.getStatusCode();
-            String response = ApiErrorResponse.build(status, ex.getMessage(), null);
-
-            return Response.status(status)
-                    .type(ResponseUtils.JSON_UTF8)
-                    .entity(response)
-                    .build();
         }
     }
 

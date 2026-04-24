@@ -8,6 +8,7 @@ import java.util.HashSet;
 import java.util.Set;
 import javax.ws.rs.core.Application;
 import mk.projects.simpleledger.rest.AccountsResource;
+import mk.projects.simpleledger.rest.errors.IllegalArgumentExceptionMapper;
 import mk.projects.simpleledger.rest.errors.NotAllowedExceptionMapper;
 import mk.projects.simpleledger.rest.errors.NotFoundExceptionMapper;
 import mk.projects.simpleledger.rest.errors.SqlExceptionMapper;
@@ -28,6 +29,7 @@ public class SimpleLedgerRestApplication extends Application {
         REST_CLASSES.add(CorsFilter.class);
         REST_CLASSES.add(NotFoundExceptionMapper.class);
         REST_CLASSES.add(NotAllowedExceptionMapper.class);
+        REST_CLASSES.add(IllegalArgumentExceptionMapper.class);
         REST_CLASSES.add(SqlExceptionMapper.class);
         REST_CLASSES.add(WebApplicationExceptionMapper.class);
         REST_CLASSES.add(ThrowableExceptionMapper.class);
