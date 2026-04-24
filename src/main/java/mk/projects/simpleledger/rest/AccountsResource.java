@@ -38,7 +38,6 @@ public class AccountsResource {
     @POST
     @Consumes(ResponseUtils.JSON_UTF8)
     @Produces(ResponseUtils.JSON_UTF8)
-    @Path("create")
     public Response createAccount(String body) {
 
         try ( Connection con = DatabaseManager.getConnection()) {
