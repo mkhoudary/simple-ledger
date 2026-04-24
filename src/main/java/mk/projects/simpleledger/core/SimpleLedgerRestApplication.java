@@ -7,7 +7,7 @@ package mk.projects.simpleledger.core;
 import java.util.HashSet;
 import java.util.Set;
 import javax.ws.rs.core.Application;
-import mk.projects.simpleledger.rest.HelloWorldResource;
+import mk.projects.simpleledger.rest.AccountsResource;
 
 /**
  *
@@ -19,7 +19,7 @@ public class SimpleLedgerRestApplication extends Application {
     private final static Set<Class<?>> REST_CLASSES = new HashSet<>();
 
     static {
-        REST_CLASSES.add(HelloWorldResource.class);
+        REST_CLASSES.add(AccountsResource.class);
     }
 
     @Override
