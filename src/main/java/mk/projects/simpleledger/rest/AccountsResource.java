@@ -39,7 +39,7 @@ public class AccountsResource {
     @POST
     @Consumes(ResponseUtils.JSON_UTF8)
     @Produces(ResponseUtils.JSON_UTF8)
-    public Response createAccount(String body) {
+    public Response createAccount(String body) throws SQLException {
 
         try ( Connection con = DatabaseManager.getConnection()) {
             JsonObject json = GsonUtils.INSTANCE.fromJson(body, JsonObject.class);
@@ -72,17 +72,6 @@ public class AccountsResource {
                         .type(ResponseUtils.JSON_UTF8)
                         .build();
             }
-        } catch (SQLException ex) {
-            Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
-
-            int status = Response.Status.BAD_REQUEST.getStatusCode();
-            String message = String.format("%s (sqlState=%s, errorCode=%s)", ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
-            String response = ApiErrorResponse.build(status, message, null);
-
-            return Response.status(status)
-                    .type(ResponseUtils.JSON_UTF8)
-                    .entity(response)
-                    .build();
         } catch (IllegalArgumentException ex) {
             Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
 
@@ -100,7 +89,7 @@ public class AccountsResource {
     @Produces(ResponseUtils.JSON_UTF8)
     public Response getAccounts(
             @QueryParam("offset") @DefaultValue("0") int offset,
-            @QueryParam("limit") @DefaultValue("20") int limit) {
+            @QueryParam("limit") @DefaultValue("20") int limit) throws SQLException {
 
         if (offset < 0) {
             offset = 0;
@@ -143,24 +132,13 @@ public class AccountsResource {
                             .build();
                 }
             }
-        } catch (SQLException ex) {
-            Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
-            int status = Response.Status.BAD_REQUEST.getStatusCode();
-            String message = String.format("%s (sqlState=%s, errorCode=%s)", ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
-            String response = ApiErrorResponse.build(status, message, null);
-
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .type(ResponseUtils.JSON_UTF8)
-                    .entity(response)
-                    .build();
-
         }
     }
 
     @GET
     @Path("{accountId}")
     @Produces(ResponseUtils.JSON_UTF8)
-    public Response getAccount(@PathParam("accountId") long accountId) {
+    public Response getAccount(@PathParam("accountId") long accountId) throws SQLException {
         if (accountId <= 0) {
             int status = Response.Status.BAD_REQUEST.getStatusCode();
             String response = ApiErrorResponse.build(status, "'accountId' must be a positive number", null);
@@ -201,18 +179,6 @@ public class AccountsResource {
                             .build();
                 }
             }
-        } catch (SQLException ex) {
-            Logger.getLogger(AccountsResource.class.getSimpleName()).log(Level.SEVERE, ex.getMessage(), ex);
-            
-            int status = Response.Status.BAD_REQUEST.getStatusCode();
-            
-            String message = String.format("%s (sqlState=%s, errorCode=%s)", ex.getMessage(), ex.getSQLState(), ex.getErrorCode());
-            String response = ApiErrorResponse.build(status, message, null);
-
-            return Response.status(status)
-                    .type(ResponseUtils.JSON_UTF8)
-                    .entity(response)
-                    .build();
         }
     }
 
