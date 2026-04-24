@@ -2,7 +2,7 @@
 
 SimpleLedger is a lightweight double-entry ledger REST API built with Java, Jersey (JAX-RS), MySQL, and Tomcat.
 
-This project was developed for the **Assessment for the role _"Head of Engineering, Global Accounts"_** at _"Mal"_**.
+This project was developed for the **Assessment for the role _"Head of Engineering, Global Accounts"_ at _"Mal"_**.
 
 ## Test Deployment
 
