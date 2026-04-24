@@ -19,11 +19,13 @@ import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import javax.ws.rs.Consumes;
+import javax.ws.rs.DefaultValue;
 import javax.ws.rs.GET;
 import javax.ws.rs.PathParam;
 import javax.ws.rs.POST;
 import javax.ws.rs.Path;
 import javax.ws.rs.Produces;
+import javax.ws.rs.QueryParam;
 import javax.ws.rs.core.Response;
 import mk.projects.simpleledger.core.DatabaseManager;
 import mk.projects.simpleledger.rest.errors.ApiErrorResponse;
@@ -51,6 +53,9 @@ public class TransactionsResource {
             + "FROM sld_journal_entries je "
             + "JOIN sld_accounts a ON a.id = je.account_id "
             + "WHERE je.transaction_id = ? ORDER BY je.id";
+    
+    private final static String FETCH_TRANSACTIONS_PAGINATED_QUERY = "SELECT id, idempotency_key, transaction_type_code, external_id, notes, created_at "
+            + "FROM sld_transactions ORDER BY id LIMIT ? OFFSET ?";
 
     @POST
     @Consumes(ResponseUtils.JSON_UTF8)
@@ -111,6 +116,56 @@ public class TransactionsResource {
                 con.rollback();
 
                 throw ex;
+            }
+        }
+    }
+    
+    @GET
+    @Produces(ResponseUtils.JSON_UTF8)
+    public Response getTransactions(
+            @QueryParam("offset") @DefaultValue("0") int offset,
+            @QueryParam("limit") @DefaultValue("20") int limit) throws SQLException {
+        if (offset < 0) {
+            offset = 0;
+        }
+
+        if (limit <= 0 || limit > 100) {
+            limit = 20;
+        }
+
+        try ( Connection con = DatabaseManager.getConnection();
+                PreparedStatement ps = con.prepareStatement(FETCH_TRANSACTIONS_PAGINATED_QUERY)) {
+            ps.setInt(1, limit);
+            ps.setInt(2, offset);
+
+            try ( ResultSet rs = ps.executeQuery()) {
+                GsonUtils.JsonArrayBuilder transactionsBuilder = GsonUtils.jsonArrayBuilder();
+
+                while (rs.next()) {
+                    Timestamp createdAt = rs.getTimestamp("created_at");
+
+                    transactionsBuilder.prop(
+                            GsonUtils.jsonObjectBuilder()
+                                    .prop("id", rs.getLong("id"))
+                                    .prop("idempotencyId", rs.getString("idempotency_key"))
+                                    .prop("type", rs.getString("transaction_type_code"))
+                                    .prop("externalId", rs.getString("external_id"))
+                                    .prop("notes", rs.getString("notes"))
+                                    .prop("createdAt", createdAt == null ? null : createdAt.toString())
+                                    .build()
+                    );
+                }
+
+                String response = GsonUtils.jsonObjectBuilder()
+                        .prop("offset", offset)
+                        .prop("limit", limit)
+                        .prop("transactions", transactionsBuilder.build())
+                        .build()
+                        .toString();
+
+                return Response.ok(response)
+                        .type(ResponseUtils.JSON_UTF8)
+                        .build();
             }
         }
     }

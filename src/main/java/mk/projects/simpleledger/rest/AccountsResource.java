@@ -82,7 +82,6 @@ public class AccountsResource {
     public Response getAccounts(
             @QueryParam("offset") @DefaultValue("0") int offset,
             @QueryParam("limit") @DefaultValue("20") int limit) throws SQLException {
-
         if (offset < 0) {
             offset = 0;
         }
