@@ -291,27 +291,52 @@ public class AccountsResource {
                                 .entity(response)
                                 .build();
                     }
-                }
-            }
 
-            try ( PreparedStatement balancePs = con.prepareStatement(QUERY_ACCOUNT_BALANCE)) {
-                balancePs.setLong(1, accountId);
+                    String normalBalance = accountRs.getString("normal_balance");
 
-                try ( ResultSet rs = balancePs.executeQuery()) {
-                    rs.next();
+                    try ( PreparedStatement balancePs = con.prepareStatement(QUERY_ACCOUNT_BALANCE)) {
+                        balancePs.setLong(1, accountId);
 
-                    String response = GsonUtils.jsonObjectBuilder()
-                            .prop("accountId", accountId)
-                            .prop("balance", rs.getBigDecimal("balance"))
-                            .build()
-                            .toString();
+                        try ( ResultSet rs = balancePs.executeQuery()) {
+                            rs.next();
 
-                    return Response.ok(response)
-                            .type(ResponseUtils.JSON_UTF8)
-                            .build();
+                            java.math.BigDecimal balance = rs.getBigDecimal("balance");
+                            String warning = getBalanceWarning(normalBalance, balance);
+
+                            String response = GsonUtils.jsonObjectBuilder()
+                                    .prop("accountId", accountId)
+                                    .prop("balance", balance)
+                                    .prop("warning", warning)
+                                    .build()
+                                    .toString();
+
+                            return Response.ok(response)
+                                    .type(ResponseUtils.JSON_UTF8)
+                                    .build();
+                        }
+                    }
                 }
             }
         }
+    }
+
+    private String getBalanceWarning(String normalBalance, java.math.BigDecimal balance) {
+        if (balance == null || balance.compareTo(java.math.BigDecimal.ZERO) == 0) {
+            return null;
+        }
+
+        boolean isDebitNormal = "DEBIT".equals(normalBalance);
+        boolean isCreditNormal = "CREDIT".equals(normalBalance);
+
+        if (isDebitNormal && balance.compareTo(java.math.BigDecimal.ZERO) < 0) {
+            return "Balance direction does not match account normalBalance (DEBIT)";
+        }
+
+        if (isCreditNormal && balance.compareTo(java.math.BigDecimal.ZERO) > 0) {
+            return "Balance direction does not match account normalBalance (CREDIT)";
+        }
+
+        return null;
     }
 
 }
